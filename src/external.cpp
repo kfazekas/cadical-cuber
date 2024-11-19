@@ -624,6 +624,7 @@ CaDiCaL::CubesWithStatus External::generate_dynamic_cubes (int depth) {
   };
   auto externalize_map = [this, externalize] (std::vector<int> cube) {
     (void) this;
+    if (!cube.size()) return;
     LOG ("Cube : ");
     std::for_each (begin (cube), end (cube), externalize);
   };

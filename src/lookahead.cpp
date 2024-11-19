@@ -531,22 +531,28 @@ CubesWithStatus Internal::generate_dynamic_cubes (int depth) {
       [] (std::vector<int> cube) { return non_tautological_cube (cube); }));
 
 
-  //Extend cubes with their implicants:
+  //Extend cubes with their implicants, filter out conflicting cubes:
   size_t unsat_cube_count = 0;
   size_t sat_cube_count = 0;
   size_t unk_cube_count = 0;
-  for (size_t j = 0; j < cubes.size (); ++j) {
+  std::vector<std::vector<int>> cubes2{std::move (cubes)};
+  cubes.clear ();
+  for (size_t j = 0; j < cubes2.size (); ++j) {
     assert (ntab.empty ());
     assert (!unsat);
-    if (!cubes[j].size()) continue;
+
+    if (!cubes2[j].size()) continue;
+    
     reset_assumptions ();
-    for (auto lit : cubes[j])
+    for (auto lit : cubes2[j])
       assume (lit);
     
-    res = propagate_assumptions(cubes[j]);
+    res = propagate_assumptions(cubes2[j]);
     if (res == 20) unsat_cube_count++;
     else if (res == 10) sat_cube_count++;
     else unk_cube_count++;
+    
+    if (res != 20) cubes.push_back(cubes2[j]);
   }
   LOG ("number of generated cubes: %zu (unk/unsat/sat: %zu/%zu/%zu)",
     cubes.size(),unk_cube_count,unsat_cube_count,sat_cube_count);
