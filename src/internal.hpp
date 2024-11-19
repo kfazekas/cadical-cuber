@@ -1228,6 +1228,8 @@ struct Internal {
   //
   int lookahead ();
   CubesWithStatus generate_cubes (int, int);
+  CubesWithStatus generate_dynamic_cubes (int);
+  std::vector<int> populate_vocc_under_trail ();
   int most_occurring_literal ();
   int lookahead_probing ();
   int lookahead_next_probe ();

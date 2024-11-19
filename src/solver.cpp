@@ -673,6 +673,19 @@ Solver::CubesWithStatus Solver::generate_cubes (int depth, int min_depth) {
   return cubes2;
 }
 
+
+Solver::CubesWithStatus Solver::generate_dynamic_cubes (int depth) {
+  TRACE ("dynamic_cubes");
+  REQUIRE_VALID_OR_SOLVING_STATE ();
+  auto cubes = external->generate_dynamic_cubes (depth);
+  LOG_API_CALL_END ("dynamic_cubes");
+
+  CubesWithStatus cubes2;
+  cubes2.status = cubes.status;
+  cubes2.cubes = cubes.cubes;
+  return cubes2;
+}
+
 void Solver::reset_assumptions () {
   TRACE ("reset_assumptions");
   REQUIRE_VALID_STATE ();

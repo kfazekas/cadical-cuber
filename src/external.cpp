@@ -611,6 +611,28 @@ CaDiCaL::CubesWithStatus External::generate_cubes (int depth,
   return cubes;
 }
 
+
+CaDiCaL::CubesWithStatus External::generate_dynamic_cubes (int depth) {
+  reset_extended ();
+  update_molten_literals ();
+  reset_limits ();
+  auto cubes = internal->generate_dynamic_cubes (depth);
+  auto externalize = [this] (int ilit) {
+    const int elit = ilit ? internal->externalize (ilit) : 0;
+    LOG ("lookahead internal %d external %d", ilit, elit);
+    return elit;
+  };
+  auto externalize_map = [this, externalize] (std::vector<int> cube) {
+    (void) this;
+    LOG ("Cube : ");
+    std::for_each (begin (cube), end (cube), externalize);
+  };
+  std::for_each (begin (cubes.cubes), end (cubes.cubes), externalize_map);
+
+  return cubes;
+}
+
+
 /*------------------------------------------------------------------------*/
 
 void External::freeze (int elit) {

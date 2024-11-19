@@ -40,6 +40,36 @@ int Internal::lookahead_locc (const std::vector<int> &loccs) {
   return 0;
 }
 
+
+std::vector<int> Internal::populate_vocc_under_trail () {
+  std::vector<literal_occ> loccs ((std::size_t) max_var + 1);
+  for (std::size_t lit = 0; lit < loccs.size (); ++lit) {
+    loccs[lit].lit = lit;
+  }
+
+  for (const auto &c : clauses) {
+    if (c->redundant) continue;
+    bool satisfied = false;
+    for (const auto &lit : *c) {
+      //if (active(lit)) LOG("\t\t lit: %d val: %d",lit,val(lit));
+      if (active (lit) && val (lit) > 0) {
+        satisfied = true;
+        break;
+      }
+    }
+    if (satisfied) continue;
+    for (const auto &lit : *c)
+      if (active (lit))
+        ++loccs[std::abs (lit)];
+  }
+  std::sort (begin (loccs), end (loccs));
+  std::vector<int> locc_map;
+  locc_map.reserve (max_var);
+  for (const auto &locc : loccs)
+    locc_map.push_back (locc.lit);
+  return locc_map;
+}
+
 // This calculates the literal that appears the most often reusing the
 // available datastructures and iterating over the clause set. This is too
 // slow to be called iteratively. A faster (but inexact) version is
@@ -400,6 +430,149 @@ int Internal::lookahead_probing () {
 
   return res;
 }
+
+
+CubesWithStatus Internal::generate_dynamic_cubes (int depth) {  
+  if (!active () || depth == 0) {
+    CubesWithStatus cubes;
+    cubes.status = 0;
+    cubes.cubes.push_back (std::vector<int> ());
+    return cubes;
+  }
+
+  MSG ("Generating dynamic cubes of depth %i", depth);
+
+  termination_forced = false;
+  int res = already_solved ();
+  if (res == 0)
+    res = restore_clauses ();
+  if (unsat)
+    res = 20;
+  if (res != 0)
+    res = solve (true);
+  if (res != 0) {
+    MSG ("Solved during preprocessing");
+    CubesWithStatus cubes;
+    cubes.status = res;
+    
+    return cubes;
+  }
+
+  reset_limits ();
+
+  MSG ("generate cubes with %zu assumptions\n", assumptions.size ());
+
+  assert (ntab.empty ());
+  std::vector<int> current_assumptions{assumptions};
+  std::vector<std::vector<int>> cubes{{assumptions}};
+  auto loccs{lookahead_populate_locc ()};
+
+  LOG ("loccs populated\n");
+  assert (ntab.empty ());
+
+  for (int i = 0; i < depth; ++i) {
+    LOG ("Probing at depth %i, currently %zu have been generated", i,
+         cubes.size ());
+    std::vector<std::vector<int>> cubes2{std::move (cubes)};
+    cubes.clear ();
+
+    for (size_t j = 0; j < cubes2.size (); ++j) {
+      assert (ntab.empty ());
+      assert (!unsat);
+      reset_assumptions ();
+      for (auto lit : cubes2[j])
+        assume (lit);
+      
+      
+      std::vector<int> implicants;
+      res = propagate_assumptions(implicants);
+      if (!res) LOG (implicants,"propagate results:");
+      else LOG("Propagation solved the formula: %d",res);
+      
+      if (unsat) {
+        LOG ("current cube is unsat; skipping");
+        unsat = false;
+        continue;
+      }
+      
+      auto dynamic_loccs{populate_vocc_under_trail ()};
+      int res = lookahead_locc (dynamic_loccs);
+      
+      if (unsat) {
+        LOG ("current cube is unsat; skipping");
+        unsat = false;
+        continue;
+      }
+
+      if (res == 0) {
+        LOG ("no lit to split %i", res);
+        cubes.push_back (cubes2[j]);
+        continue;
+      }
+
+      assert (res != 0);
+      LOG ("splitting on lit %i", res);
+      std::vector<int> cube1{cubes2[j]};
+      cube1.push_back (res);
+
+      std::vector<int> cube2{std::move (cubes2[j])};
+      cube2.push_back (-res);
+
+      cubes.push_back (cube1);
+      cubes.push_back (cube2);
+    }
+
+    if (terminating_asked ())
+      break;
+  }
+
+  assert (std::for_each (
+      std::begin (cubes), std::end (cubes),
+      [] (std::vector<int> cube) { return non_tautological_cube (cube); }));
+
+
+  //Extend cubes with their implicants:
+  size_t unsat_cube_count = 0;
+  size_t sat_cube_count = 0;
+  size_t unk_cube_count = 0;
+  for (size_t j = 0; j < cubes.size (); ++j) {
+    assert (ntab.empty ());
+    assert (!unsat);
+    if (!cubes[j].size()) continue;
+    reset_assumptions ();
+    for (auto lit : cubes[j])
+      assume (lit);
+    
+    res = propagate_assumptions(cubes[j]);
+    if (res == 20) unsat_cube_count++;
+    else if (res == 10) sat_cube_count++;
+    else unk_cube_count++;
+  }
+  LOG ("number of generated cubes: %zu (unk/unsat/sat: %zu/%zu/%zu)",
+    cubes.size(),unk_cube_count,unsat_cube_count,sat_cube_count);
+
+  reset_assumptions ();
+
+  for (auto lit : current_assumptions)
+    assume (lit);
+
+  lookingahead = false;
+
+  if (unsat) {
+    LOG ("Solved during preprocessing");
+    CubesWithStatus cubes;
+    cubes.status = 20;
+    return cubes;
+  }
+
+  CubesWithStatus rcubes;
+  rcubes.status = 0;
+  rcubes.cubes = cubes;
+
+  return rcubes;
+}
+
+
 
 CubesWithStatus Internal::generate_cubes (int depth, int min_depth) {
   if (!active () || depth == 0) {
