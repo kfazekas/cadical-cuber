@@ -87,7 +87,7 @@ int main (int argc, char ** argv) {
   cubes_path = argv[3];
 
   CaDiCaL::Solver * _cadical = new CaDiCaL::Solver();
-  _cadical->set("log",1);
+  _cadical->set("log",0);
 
   int max_var = 0;
   const char* err = _cadical->read_dimacs(dimacs_path,max_var);
