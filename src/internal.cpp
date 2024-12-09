@@ -345,13 +345,16 @@ int Internal::propagate_assumptions (std::vector<int>& implicants) {
   init_search_limits ();
   init_report_limits();
 
-  int res = already_solved (); // root-level propagation is done here
+  // backtracks to 0 and root-level propagation is done here (assuming no ilb)
+  int res = already_solved (); 
   
-  size_t current_level = level;
+  int last_assumption_level = assumptions.size();
+  if (constraint.size()) last_assumption_level++;
+  
   if (!res) {
-    restore_clauses (); // restore clauses tainted by the assumptions -> needed to recognize UNSAT
-    implicants.clear();
-    while (!res && (current_level < assumptions.size () || (current_level == assumptions.size () && constraint.size ()))) {
+    restore_clauses ();
+    implicants.clear ();
+    while (!res) {
       if (unsat)
         res = 20;
       else if (unsat_constraint)
@@ -365,11 +368,17 @@ int Internal::propagate_assumptions (std::vector<int>& implicants) {
         break;                               // decision or conflict limit
       else if (terminated_asynchronously ()) // externally terminated
         break;
-      else
+      else {
+        if (level >= last_assumption_level)
+            break;
         res = decide ();
-    current_level = level;
+      }
+        
     }
   }
+
+  if (unsat || unsat_constraint) res = 20;
+
   if (!res && satisfied ()) res = 10;
 
   if (res != 20) {

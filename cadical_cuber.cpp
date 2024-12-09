@@ -10,6 +10,7 @@
 #include "file.hpp"
 
 #include <fstream>
+#include <cstring>
 
 
 const float ver {1.0};
@@ -56,7 +57,10 @@ int get_number_arg(std::string const& arg) {
 }   
 
 void print_usage() {
-  std::cout << "usage: cadical_cuber <path to dimacs> <depth> <path to cubes dimacs> " << std::endl;
+  std::cout << "usage: cadical_cuber <path to dimacs> <depth> <path to cubes dimacs> <cubing-strategy>, where cubing strategy can be" << std::endl;
+  std::cout << "\t 1: cubing based on dynamic occurrence count [default]" << std::endl;
+  std::cout << "\t 2: cubing based on TreeLook algorithm" << std::endl;
+  std::cout << "\t 3: cubing based on sum of number of propagations" << std::endl;
 }
 
 int d = 0;
@@ -85,7 +89,17 @@ int main (int argc, char ** argv) {
   dimacs_path = argv[1];
   d = get_number_arg (argv[2]);
   cubes_path = argv[3];
-
+  int cubing_strategy = 1;
+  if (argc > 4) {
+    int tmp = get_number_arg (argv[4]);
+    if (tmp <= 0 || tmp > 3) {
+      std::cerr << "Error, invalid cubing strategy." << std::endl;
+      print_usage();
+      return 1;
+    }
+    cubing_strategy = tmp;
+  }
+  std::cout << "c Used cubing strategy: " << cubing_strategy << std::endl;
   CaDiCaL::Solver * _cadical = new CaDiCaL::Solver();
   _cadical->set("log",0);
 
@@ -93,18 +107,18 @@ int main (int argc, char ** argv) {
   const char* err = _cadical->read_dimacs(dimacs_path,max_var);
   if (err) {
     std::cerr << "Error while reading input: " << err << std::endl;
-    return true;
+    return 1;
   }
   
   std::cout << "c Maximum variable: " << max_var << std::endl;
   if (d > max_var) d = max_var;
 
-  CaDiCaL::Solver::CubesWithStatus cs = _cadical->generate_dynamic_cubes(d);
+  CaDiCaL::Solver::CubesWithStatus cs = _cadical->generate_dynamic_cubes(d,cubing_strategy);
 
 
   if (!CaDiCaL::File::writable (cubes_path)) {
-    std::cerr << "cannot write cubes to: " << cubes_path << std::endl;
-    return true;
+    std::cerr << "Error, cannot write cubes to: " << cubes_path << std::endl;
+    return 1;
   }
   std::ofstream cube_dimacs(cubes_path);
   cube_dimacs << "c This is a DNF formula, but p dnf is not accepted by SDD." << std::endl;

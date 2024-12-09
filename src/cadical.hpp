@@ -496,7 +496,7 @@ public:
   };
 
   CubesWithStatus generate_cubes (int, int min_depth = 0);
-  CubesWithStatus generate_dynamic_cubes (int);
+  CubesWithStatus generate_dynamic_cubes (int, int strategy = 1);
 
   void reset_assumptions ();
   void reset_constraint ();

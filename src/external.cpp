@@ -612,11 +612,11 @@ CaDiCaL::CubesWithStatus External::generate_cubes (int depth,
 }
 
 
-CaDiCaL::CubesWithStatus External::generate_dynamic_cubes (int depth) {
+CaDiCaL::CubesWithStatus External::generate_dynamic_cubes (int depth, int strategy) {
   reset_extended ();
   update_molten_literals ();
   reset_limits ();
-  auto cubes = internal->generate_dynamic_cubes (depth);
+  auto cubes = internal->generate_dynamic_cubes (depth,strategy);
   auto externalize = [this] (int ilit) {
     const int elit = ilit ? internal->externalize (ilit) : 0;
     LOG ("lookahead internal %d external %d", ilit, elit);

@@ -674,10 +674,10 @@ Solver::CubesWithStatus Solver::generate_cubes (int depth, int min_depth) {
 }
 
 
-Solver::CubesWithStatus Solver::generate_dynamic_cubes (int depth) {
+Solver::CubesWithStatus Solver::generate_dynamic_cubes (int depth, int strategy) {
   TRACE ("dynamic_cubes");
   REQUIRE_VALID_OR_SOLVING_STATE ();
-  auto cubes = external->generate_dynamic_cubes (depth);
+  auto cubes = external->generate_dynamic_cubes (depth, strategy);
   LOG_API_CALL_END ("dynamic_cubes");
 
   CubesWithStatus cubes2;

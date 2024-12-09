@@ -432,15 +432,95 @@ int Internal::lookahead_probing () {
 }
 
 
-CubesWithStatus Internal::generate_dynamic_cubes (int depth) {  
-  if (!active () || depth == 0) {
+int Internal::simple_lookahead_probing (const std::vector<int> &loccs) {
+
+  //MSG ("simplified lookahead-probe round withouth propagation limit and with %zu assumptions",assumptions.size ());
+  termination_forced = false;
+
+  size_t prop_before = trail.size();
+  
+  if (!propagate ()) {
+    MSG ("empty clause before probing");
+    return 0;
+  }
+  assert (!unsat);
+#ifndef NDEBUG
+  MSG("trail size: %ld, before propagation: %ld",trail.size(),prop_before);
+  for (const auto &lit : trail)
+      printf (" %d", lit);
+  printf("\n");
+#endif
+
+  assert (trail.size() == prop_before);
+
+
+  int probe_count = 0;
+  uint64_t res_prop_sum = 0;
+  int res = 0;
+
+  for (auto idx : loccs) {
+    if (probe_count > 20) break;
+    assert(idx > 0 && idx <= max_var);
+    if (!active (abs (idx)) || assumed (idx) || assumed (-idx) ||
+        val (idx))
+        continue;
+    probe_count++;
+    
+    int lit = idx;
+    uint64_t prop_pos, prop_neg = 0;
+    bool ok_neg = true;
+    bool ok_pos = true;
+    search_assume_decision (lit);
+    ok_pos = propagate ();
+    prop_pos = ok_pos ? trail.size() - prop_before : max_var;
+    
+
+    backtrack (level-1);
+    if (unsat) { unsat = false; conflict = 0; }
+    
+
+    search_assume_decision (-lit);
+    ok_neg = propagate ();
+    prop_neg = ok_neg ? trail.size() - prop_before : max_var;
+    
+
+    
+    backtrack (level-1);
+    if (unsat) { unsat = false; conflict = 0; }
+
+    // If both polarity fails, we are done with the current prefix-cube.
+    if (!ok_pos && !ok_neg) {
+      backtrack ();
+      unsat = true;
+      return 0;
+    }
+#ifndef NDEBUG
+    MSG ("\ttried to probe variable: %d (prop_neg: %ld, conflict_neg: %d, prop_pos: %ld, conflict_pos: %d)",lit,prop_neg,!ok_neg,prop_pos,!ok_pos);
+#endif
+    if (prop_neg + prop_pos > res_prop_sum) {
+      res = idx;
+      res_prop_sum = prop_neg + prop_pos;
+#ifndef NDEBUG      
+      MSG ("\tnew winner: %d",idx);
+#endif
+    }
+
+  }
+
+  return res;
+}
+
+
+CubesWithStatus Internal::generate_dynamic_cubes (int depth, int strategy) {  
+  if (!active () || depth == 0 || strategy <= 0 || strategy > 3) {
     CubesWithStatus cubes;
     cubes.status = 0;
     cubes.cubes.push_back (std::vector<int> ());
     return cubes;
   }
-
-  MSG ("Generating dynamic cubes of depth %i", depth);
+  
+  MSG ("Generating dynamic cubes of depth %i, based on strategy %d", depth, strategy);
+  lookingahead = false;
 
   termination_forced = false;
   int res = already_solved ();
@@ -483,24 +563,69 @@ CubesWithStatus Internal::generate_dynamic_cubes (int depth) {
       for (auto lit : cubes2[j])
         assume (lit);
       
-      
+      assert (!unsat);
       std::vector<int> implicants;
-      res = propagate_assumptions(implicants);
-      if (!res) LOG (implicants,"propagate results:");
-      else LOG("Propagation solved the formula: %d",res);
+#ifndef NDEBUG      
+      MSG ("trail size before propagate_assumptions: %ld",trail.size());
+      printf("c cube: ");
+      for (auto const& lit : cubes2[j]) {
+        printf(" %d",lit);
+      }
+      printf("\n");
+#endif
+      res = propagate_assumptions(implicants); //restores clauses
       
+      if (!res) LOG (implicants,"propagate results:");
+#ifndef NDEBUG        
+      MSG("Propagation solved the formula: %d, trail.size(): %ld",res, trail.size());
+      assert (res == 20 || implicants.size() == trail.size());
+      printf("implicants: ");
+      for (auto const& lit : implicants) {
+        printf(" %d",lit);
+      }
+      printf("\n");
+      printf("trail: ");
+      for (auto const& lit : trail) {
+        printf(" %d",lit);
+      }
+#endif
       if (unsat) {
-        LOG ("current cube is unsat; skipping");
+        MSG ("current cube is unsat; skipping");
+        LOG(cubes2[j], "unsat cube found: ");
         unsat = false;
+        conflict = 0;
+        if (level) backtrack ();
         continue;
       }
       
+      int res = 0;
       auto dynamic_loccs{populate_vocc_under_trail ()};
-      int res = lookahead_locc (dynamic_loccs);
+      MSG("cube-prefix-size: %zu",cubes2[j].size());
+      switch (strategy) {
+        case 1: //Cubing based on occurrence count under current assignment
+          res = lookahead_locc (dynamic_loccs);
+          MSG ("lookahed locc: %d",res);
+          break;
+        case 2: //Cubing based on lookahead probing
+          lookingahead = true;
+          res = lookahead_probing ();
+          MSG ("lookahead_probing: %d",res);
+          break;
+        case 3:
+          res = simple_lookahead_probing (dynamic_loccs);
+          MSG ("simple_lookahead_probing: %d",res);
+          break;
+        default:
+          assert (false);
+          break;
+      }
+      
       
       if (unsat) {
         LOG ("current cube is unsat; skipping");
         unsat = false;
+        conflict = 0;
+        if (level) backtrack ();
         continue;
       }
 
@@ -511,7 +636,7 @@ CubesWithStatus Internal::generate_dynamic_cubes (int depth) {
       }
 
       assert (res != 0);
-      LOG ("splitting on lit %i", res);
+      MSG ("splitting on lit %i", res);
       std::vector<int> cube1{cubes2[j]};
       cube1.push_back (res);
 
@@ -522,14 +647,15 @@ CubesWithStatus Internal::generate_dynamic_cubes (int depth) {
       cubes.push_back (cube2);
     }
 
-    if (terminating_asked ())
+    if (terminating_asked ()) {
+      MSG ("terminating asked, breaking now.");
       break;
+    }
   }
 
   assert (std::for_each (
       std::begin (cubes), std::end (cubes),
       [] (std::vector<int> cube) { return non_tautological_cube (cube); }));
-
 
   //Extend cubes with their implicants, filter out conflicting cubes:
   size_t unsat_cube_count = 0;

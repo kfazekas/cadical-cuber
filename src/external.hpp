@@ -347,7 +347,7 @@ struct External {
   /*----------------------------------------------------------------------*/
   int lookahead ();
   CaDiCaL::CubesWithStatus generate_cubes (int, int);
-  CaDiCaL::CubesWithStatus generate_dynamic_cubes (int);
+  CaDiCaL::CubesWithStatus generate_dynamic_cubes (int, int strategy = 1);
 
   int fixed (int elit) const; // Implemented in 'internal.hpp'.
 

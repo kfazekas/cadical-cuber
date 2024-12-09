@@ -1228,7 +1228,7 @@ struct Internal {
   //
   int lookahead ();
   CubesWithStatus generate_cubes (int, int);
-  CubesWithStatus generate_dynamic_cubes (int);
+  CubesWithStatus generate_dynamic_cubes (int,int);
   std::vector<int> populate_vocc_under_trail ();
   int most_occurring_literal ();
   int lookahead_probing ();
@@ -1237,6 +1237,8 @@ struct Internal {
   void lookahead_generate_probes ();
   std::vector<int> lookahead_populate_locc ();
   int lookahead_locc (const std::vector<int> &);
+
+  int simple_lookahead_probing (const std::vector<int> &);
 
   bool terminating_asked ();
 
