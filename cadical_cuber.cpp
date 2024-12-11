@@ -67,6 +67,14 @@ int d = 0;
 const char * cubes_path = 0;
 const char * dimacs_path = 0;
 
+std::vector<int> fixed_collection;
+
+class FixCollector : public CaDiCaL::FixedAssignmentListener {
+  void notify_fixed_assignment (int lit) {
+    fixed_collection.push_back(lit);
+    std::cout << "New fixed lit: " << lit << std::endl;
+  }
+};
 
 int main (int argc, char ** argv) {
   signal_SIGINT =  signal(SIGINT, SIGINT_exit);
@@ -103,6 +111,9 @@ int main (int argc, char ** argv) {
   CaDiCaL::Solver * _cadical = new CaDiCaL::Solver();
   _cadical->set("log",0);
 
+  // FixCollector* fal = new FixCollector ();
+  // _cadical->connect_fixed_listener(fal);
+
   int max_var = 0;
   const char* err = _cadical->read_dimacs(dimacs_path,max_var);
   if (err) {
@@ -124,6 +135,7 @@ int main (int argc, char ** argv) {
   cube_dimacs << "c This is a DNF formula, but p dnf is not accepted by SDD." << std::endl;
   cube_dimacs << "c input: " << dimacs_path << std::endl;
   cube_dimacs << "c depth: " << d << std::endl;
+  cube_dimacs << "c cubing strategy: " << cubing_strategy << std::endl;
   cube_dimacs << "p cnf " << max_var << " " << cs.cubes.size() << std::endl;
   
   for (const auto &cube : cs.cubes) {

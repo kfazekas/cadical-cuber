@@ -455,6 +455,8 @@ int Internal::simple_lookahead_probing (const std::vector<int> &loccs) {
 
 
   int probe_count = 0;
+  int probe_limit = loccs.size() * 0.001;
+  MSG ("simple lookahead probing starts, initial trail size: %ld, probe limit: %d (loccs size: %ld)",trail.size(),probe_limit,loccs.size());
   uint64_t res_prop_sum = 0;
   int res = 0;
 
@@ -474,29 +476,32 @@ int Internal::simple_lookahead_probing (const std::vector<int> &loccs) {
     ok_pos = propagate ();
     prop_pos = ok_pos ? trail.size() - prop_before : max_var;
     
-
     backtrack (level-1);
-    if (unsat) { unsat = false; conflict = 0; }
-    
+    conflict = 0;
+    unsat = false;
+
 
     search_assume_decision (-lit);
     ok_neg = propagate ();
     prop_neg = ok_neg ? trail.size() - prop_before : max_var;
     
-
-    
     backtrack (level-1);
-    if (unsat) { unsat = false; conflict = 0; }
+    conflict = 0;
+    unsat = false;
 
+#ifndef NDEBUG
+    MSG ("\ttried to probe variable: %d (prop_neg: %ld, conflict_neg: %d, prop_pos: %ld, conflict_pos: %d)",lit,prop_neg,!ok_neg,prop_pos,!ok_pos);
+#endif
     // If both polarity fails, we are done with the current prefix-cube.
     if (!ok_pos && !ok_neg) {
+#ifndef NDEBUG
+    MSG ("\tBoth polarity of variable %d failed, returning 0",lit);
+#endif
       backtrack ();
       unsat = true;
       return 0;
     }
-#ifndef NDEBUG
-    MSG ("\ttried to probe variable: %d (prop_neg: %ld, conflict_neg: %d, prop_pos: %ld, conflict_pos: %d)",lit,prop_neg,!ok_neg,prop_pos,!ok_pos);
-#endif
+
     if (prop_neg + prop_pos > res_prop_sum) {
       res = idx;
       res_prop_sum = prop_neg + prop_pos;
